@@ -8,14 +8,20 @@ class BLIP2Captioner:
         self.model = Blip2ForConditionalGeneration.from_pretrained(model_name).to(self.device)
         self.model.eval()
         # Generation controls
-        self.max_length = 30
+        self.max_length = 30  # interpreted as max_new_tokens for BLIP-2
         self.single_sentence = True  # can be overridden by runner
+        # Optional instruction/prompt (may be set by runner)
+        self.prompt = None
 
     @torch.no_grad()
     def caption(self, pil_image, max_length: int | None = None):
+        # For BLIP-2, prefer controlling length via max_new_tokens to avoid coupling with input prompt length
         ml = max_length if max_length is not None else self.max_length
-        inputs = self.processor(images=pil_image, return_tensors="pt").to(self.device)
-        out = self.model.generate(**inputs, max_length=ml)
+        if getattr(self, "prompt", None):
+            inputs = self.processor(images=pil_image, text=self.prompt, return_tensors="pt").to(self.device)
+        else:
+            inputs = self.processor(images=pil_image, return_tensors="pt").to(self.device)
+        out = self.model.generate(**inputs, max_new_tokens=ml)
         txt = self.processor.decode(out[0], skip_special_tokens=True)
         if self.single_sentence:
             # Trim to first sentence-like segment
