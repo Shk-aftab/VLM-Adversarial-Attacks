@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Data and artifacts
+data/
+wandb/
+saved_adv/
+*.wandb
+runs/
+
+# Models/checkpoints
+*.pt
+*.pth
+*.ckpt
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/

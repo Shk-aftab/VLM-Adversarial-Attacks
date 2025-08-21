@@ -1,0 +1,91 @@
+# Higher-impact / efficiency-focused adversarial attack experiments
+model:
+  name: "Salesforce/blip-image-captioning-large"
+  device: "cuda"
+
+data:
+  root: "data/coco2017"
+  split: "val2017"
+  max_images: 1000
+  batch_size: 16
+
+# Image saving configuration (store *_orig.png / *_adv.png pairs)
+save_images:
+  enabled: true
+  max_count: 15
+
+wandb:
+  project: "adversarial-blip-attacks-high-impact"
+  entity: null
+  tags: ["adversarial", "blip", "image-captioning", "high-impact"]
+
+experiments:
+  baseline:
+    type: "baseline"
+    output_file: "eval/baseline_1000.jsonl"
+
+  # FGSM with higher eps for stronger, fast single-step attacks
+  # Rationale: single-step attacks scale with eps; useful to probe the
+  # strength/quality curve quickly at moderate-to-high bounds.
+  fgsm_eps6:
+    type: "attack"
+    attack: "fgsm"
+    epsilon: "6/255"
+    output_file: "eval/fgsm_eps6_255_1000.jsonl"
+    save_dir: "runs/fgsm_eps6_255_1000"
+
+  fgsm_eps10:
+    type: "attack"
+    attack: "fgsm"
+    epsilon: "10/255"
+    output_file: "eval/fgsm_eps10_255_1000.jsonl"
+    save_dir: "runs/fgsm_eps10_255_1000"
+
+  # PGD variants to explore efficiency vs strength at moderate-to-high eps
+  # Faster PGD: fewer steps, larger alpha
+  # Rationale: reduces compute while testing whether larger per-step moves
+  # still achieve strong degradation within the same eps bound.
+  pgd_eps6_s5_a2:
+    type: "attack"
+    attack: "pgd"
+    epsilon: "6/255"
+    alpha: "2/255"
+    steps: 5
+    output_file: "eval/pgd_s5_a2_255_eps6_255_1000.jsonl"
+    save_dir: "runs/pgd_eps6_s5_a2_255_1000"
+
+  # Standard PGD: balanced steps
+  # Rationale: a common baseline setting at higher eps; compare against
+  # faster and stronger variants on both caption and image quality metrics.
+  pgd_eps8_s10_a2:
+    type: "attack"
+    attack: "pgd"
+    epsilon: "8/255"
+    alpha: "2/255"
+    steps: 10
+    output_file: "eval/pgd_s10_a2_255_eps8_255_1000.jsonl"
+    save_dir: "runs/pgd_eps8_s10_a2_255_1000"
+
+  # Stronger PGD: more steps while staying in same eps bound
+  # Rationale: improved optimization may yield stronger caption degradation
+  # at the same distortion limit; check impact on LPIPS/SSIM/PSNR.
+  pgd_eps10_s20_a2:
+    type: "attack"
+    attack: "pgd"
+    epsilon: "10/255"
+    alpha: "2/255"
+    steps: 20
+    output_file: "eval/pgd_s20_a2_255_eps10_255_1000.jsonl"
+    save_dir: "runs/pgd_eps10_s20_a2_255_1000"
+
+  # Alternative step-size at same eps: compare optimization behavior
+  # Rationale: smaller alpha with more steps can change optimization dynamics;
+  # compare against a2/255 to see if image quality improves for similar effect.
+  pgd_eps8_s20_a1:
+    type: "attack"
+    attack: "pgd"
+    epsilon: "8/255"
+    alpha: "1/255"
+    steps: 20
+    output_file: "eval/pgd_s20_a1_255_eps8_255_1000.jsonl"
+    save_dir: "runs/pgd_eps8_s20_a1_255_1000"

@@ -1,0 +1,74 @@
+# Experiment configurations for adversarial attacks
+model:
+  name: "Salesforce/blip-image-captioning-large"  # Larger model (~1.88GB for better GPU utilization)
+  device: "cuda"
+
+data:
+  root: "data/coco2017"
+  split: "val2017"
+  max_images: 1000
+  batch_size: 16  # Process 4 images simultaneously
+
+# Image saving configuration
+save_images:
+  enabled: true      # Set to false to disable image saving entirely
+  max_count: 10      # Maximum number of image pairs to save (null for all)
+
+wandb:
+  project: "adversarial-blip-attacks"
+  entity: null  # Set your wandb username/team here
+  tags: ["adversarial", "blip", "image-captioning"]
+
+# Experiment definitions
+experiments:
+  baseline:
+    type: "baseline"
+    output_file: "eval/baseline_1000.jsonl"
+    
+  fgsm_eps2:
+    type: "attack"
+    attack: "fgsm"
+    epsilon: "2/255"
+    output_file: "eval/fgsm_eps2_255_1000.jsonl"
+    save_dir: "runs/fgsm_eps2_255_1000"
+    
+  fgsm_eps4:
+    type: "attack"
+    attack: "fgsm"
+    epsilon: "4/255"
+    output_file: "eval/fgsm_eps4_255_1000.jsonl"
+    save_dir: "runs/fgsm_eps4_255_1000"
+    
+  fgsm_eps8:
+    type: "attack"
+    attack: "fgsm"
+    epsilon: "8/255"
+    output_file: "eval/fgsm_eps8_255_1000.jsonl"
+    save_dir: "runs/fgsm_eps8_255_1000"
+    
+  pgd_eps2:
+    type: "attack"
+    attack: "pgd"
+    epsilon: "2/255"
+    alpha: "1/255"
+    steps: 10
+    output_file: "eval/pgd_s10_a1_255_eps2_255_1000.jsonl"
+    save_dir: "runs/pgd_eps2_255_1000"
+    
+  pgd_eps4:
+    type: "attack"
+    attack: "pgd"
+    epsilon: "4/255"
+    alpha: "1/255"
+    steps: 10
+    output_file: "eval/pgd_s10_a1_255_eps4_255_1000.jsonl"
+    save_dir: "runs/pgd_eps4_255_1000"
+    
+  pgd_eps8:
+    type: "attack"
+    attack: "pgd"
+    epsilon: "8/255"
+    alpha: "1/255"
+    steps: 10
+    output_file: "eval/pgd_s10_a1_255_eps8_255_1000.jsonl"
+    save_dir: "runs/pgd_eps8_255_1000"
