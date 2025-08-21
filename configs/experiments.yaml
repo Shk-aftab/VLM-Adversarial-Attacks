@@ -1,7 +1,13 @@
 # Experiment configurations for adversarial attacks
+
+#llava-hf/llava-1.5-7b-hf
+#Salesforce/blip2-opt-2.7b
 model:
-  name: "Salesforce/blip-image-captioning-large"  # Larger model (~1.88GB for better GPU utilization)
+  name: "Salesforce/blip2-opt-2.7b"  # or Salesforce/blip2-opt-2.7b or Salesforce/blip-image-captioning-large or llava-hf/llava-1.5-7b-hf
   device: "cuda"
+  single_sentence: true
+  max_length: 25
+  prompt: "Describe the image in one concise sentence."
 
 data:
   root: "data/coco2017"
@@ -25,13 +31,6 @@ experiments:
     type: "baseline"
     output_file: "eval/baseline_1000.jsonl"
     
-  fgsm_eps2:
-    type: "attack"
-    attack: "fgsm"
-    epsilon: "2/255"
-    output_file: "eval/fgsm_eps2_255_1000.jsonl"
-    save_dir: "runs/fgsm_eps2_255_1000"
-    
   fgsm_eps4:
     type: "attack"
     attack: "fgsm"
@@ -45,15 +44,6 @@ experiments:
     epsilon: "8/255"
     output_file: "eval/fgsm_eps8_255_1000.jsonl"
     save_dir: "runs/fgsm_eps8_255_1000"
-    
-  pgd_eps2:
-    type: "attack"
-    attack: "pgd"
-    epsilon: "2/255"
-    alpha: "1/255"
-    steps: 10
-    output_file: "eval/pgd_s10_a1_255_eps2_255_1000.jsonl"
-    save_dir: "runs/pgd_eps2_255_1000"
     
   pgd_eps4:
     type: "attack"
@@ -72,3 +62,25 @@ experiments:
     steps: 10
     output_file: "eval/pgd_s10_a1_255_eps8_255_1000.jsonl"
     save_dir: "runs/pgd_eps8_255_1000"
+
+  veattack_eps6:
+    type: "attack"
+    attack: "veattack"
+    epsilon: "6/255"
+    alpha: "1/255"
+    steps: 10
+    ve_mode: "max"
+    ve_momentum: 0.9
+    output_file: "eval/veattack_s10_a1_255_eps6_255_1000.jsonl"
+    save_dir: "runs/veattack_eps6_255_1000"
+
+  veattack_eps8:
+    type: "attack"
+    attack: "veattack"
+    epsilon: "8/255"
+    alpha: "1/255"
+    steps: 10
+    ve_mode: "max"
+    ve_momentum: 0.9
+    output_file: "eval/veattack_s10_a1_255_eps8_255_1000.jsonl"
+    save_dir: "runs/veattack_eps8_255_1000"

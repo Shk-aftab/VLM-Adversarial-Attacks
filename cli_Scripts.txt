@@ -9,9 +9,9 @@ python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
 bash scripts/download_coco2017_val.sh data/coco2017
 ```
 
-### Baseline
+### Baseline (global)
 ```
-python scripts/caption_images.py --data_root data/coco2017 --out eval/baseline.jsonl --max_images 1000
+python scripts/caption_images.py --data_root data/coco2017 --out eval/baseline_1000.jsonl --max_images 1000
 ```
 
 ### FGSM
@@ -20,10 +20,10 @@ python scripts/caption_images.py --data_root data/coco2017 --out eval/baseline.j
 python -m scripts.attack_and_eval --data_root data/coco2017 --attack fgsm --epsilon 2/255 --out eval/fgsm_eps2_255_1000.jsonl --max_images 1000 --save_dir runs/fgsm_eps2_255_1000
 
 #### eval 2/225
-python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/fgsm_eps2_255_1000.jsonl --images_root data/coco2017/val2017
+python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/Salesforce__blip2-opt-2.7b/standard/fgsm_eps2_255_1000.jsonl --images_root data/coco2017/val2017
 
 #### compute lpips 
-python -m scripts.compute_lpips_psnr_ssim --dir runs/fgsm_eps2_255_1000/fgsm
+python -m scripts.compute_lpips_psnr_ssim --dir runs/Salesforce__blip2-opt-2.7b/standard/fgsm_eps2_255_1000
 
 ------------------------------
 
@@ -31,10 +31,10 @@ python -m scripts.compute_lpips_psnr_ssim --dir runs/fgsm_eps2_255_1000/fgsm
 python -m scripts.attack_and_eval --data_root data/coco2017 --attack fgsm --epsilon 4/255 --out eval/fgsm_eps4_255_1000.jsonl --max_images 1000 --save_dir runs/fgsm_eps4_255_1000
 
 #### eval 4/225
-python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/fgsm_eps4_255_1000.jsonl --images_root data/coco2017/val2017
+python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/Salesforce__blip2-opt-2.7b/standard/fgsm_eps4_255_1000.jsonl --images_root data/coco2017/val2017
 
 #### compute lpips 
-python -m scripts.compute_lpips_psnr_ssim --dir runs/fgsm_eps4_255_1000/fgsm
+python -m scripts.compute_lpips_psnr_ssim --dir runs/Salesforce__blip2-opt-2.7b/standard/fgsm_eps4_255_1000
 
 --------------------------------
 
@@ -42,33 +42,33 @@ python -m scripts.compute_lpips_psnr_ssim --dir runs/fgsm_eps4_255_1000/fgsm
 python -m scripts.attack_and_eval --data_root data/coco2017 --attack fgsm --epsilon 8/255 --out eval/fgsm_eps8_255_1000.jsonl --max_images 1000 --save_dir runs/fgsm_eps8_255_1000
 
 #### eval 8/225
-python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/fgsm_eps8_255_1000.jsonl --images_root data/coco2017/val2017
+python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/Salesforce__blip2-opt-2.7b/standard/fgsm_eps8_255_1000.jsonl --images_root data/coco2017/val2017
 
 #### attack 8/225
-python -m scripts.compute_lpips_psnr_ssim --dir runs/fgsm_eps8_255_1000/fgsm
+python -m scripts.compute_lpips_psnr_ssim --dir runs/Salesforce__blip2-opt-2.7b/standard/fgsm_eps8_255_1000
 
 
 ### PGD
 python -m scripts.attack_and_eval --data_root data/coco2017 --attack pgd --epsilon 2/255 --steps 10 --alpha 1/255 --out eval/pgd_s10_a1_255_eps2_255_1000.jsonl --max_images 1000 --save_dir runs/pgd_eps2_255_1000
 
-python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/pgd_s10_a1_255_eps2_255_1000.jsonl --images_root data/coco2017/val2017
+python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/Salesforce__blip2-opt-2.7b/standard/pgd_s10_a1_255_eps2_255_1000.jsonl --images_root data/coco2017/val2017
 
-python -m scripts.compute_lpips_psnr_ssim --dir runs/pgd_eps2_255_1000/pgd
+python -m scripts.compute_lpips_psnr_ssim --dir runs/Salesforce__blip2-opt-2.7b/standard/pgd_eps2_255_1000
 
 ---------------------
 
 python -m scripts.attack_and_eval --data_root data/coco2017 --attack pgd --epsilon 4/255 --steps 10 --alpha 1/255 --out eval/pgd_s10_a1_255_eps4_255_1000.jsonl --max_images 1000 --save_dir runs/pgd_eps4_255_1000
 
-python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/pgd_s10_a1_255_eps4_255_1000.jsonl --images_root data/coco2017/val2017
+python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/Salesforce__blip2-opt-2.7b/standard/pgd_s10_a1_255_eps4_255_1000.jsonl --images_root data/coco2017/val2017
 
-python -m scripts.compute_lpips_psnr_ssim --dir runs/pgd_eps4_255_1000/pgd
+python -m scripts.compute_lpips_psnr_ssim --dir runs/Salesforce__blip2-opt-2.7b/standard/pgd_eps4_255_1000
 
 --------------------------
 
 python -m scripts.attack_and_eval --data_root data/coco2017 --attack pgd --epsilon 8/255 --steps 10 --alpha 1/255 --out eval/pgd_s10_a1_255_eps8_255_1000.jsonl --max_images 1000 --save_dir runs/pgd_eps8_255_1000
 
-python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/pgd_s10_a1_255_eps8_255_1000.jsonl --images_root data/coco2017/val2017
+python -m scripts.evaluate_results --baseline eval/baseline_1000.jsonl --adversarial eval/Salesforce__blip2-opt-2.7b/standard/pgd_s10_a1_255_eps8_255_1000.jsonl --images_root data/coco2017/val2017
 
-python -m scripts.compute_lpips_psnr_ssim --dir runs/pgd_eps8_255_1000/pgd
+python -m scripts.compute_lpips_psnr_ssim --dir runs/Salesforce__blip2-opt-2.7b/standard/pgd_eps8_255_1000
 
 --------------------------

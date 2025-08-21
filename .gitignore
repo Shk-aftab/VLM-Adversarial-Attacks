@@ -10,6 +10,7 @@ wandb/
 saved_adv/
 *.wandb
 runs/
+result/
 
 # Models/checkpoints
 *.pt

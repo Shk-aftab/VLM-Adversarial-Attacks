@@ -34,16 +34,21 @@ except LookupError:
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.utils.config import load_config, get_experiment_config, parse_float_maybe_frac
-from src.model.blip_captioner import BLIPCaptioner
+from src.model.factory import create_captioner
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
+from src.attacks.veattack import veattack
 from src.utils.attack_runner import to_pil_from_pixel_values, pixel_values_from_image
 from eval.metrics import compute_bleu, compute_rougeL, compute_clipscore
 from src.utils.data import CocoValDataset
 
-def run_baseline(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
+# captioner factory now provided by src.model.factory.create_captioner
+
+def run_baseline(config: dict, captioner, dataset: CocoValDataset):
     """Run baseline captioning without attacks."""
-    output_file = config["output_file"]
+    # Store baseline at eval/<base_name> so it can be reused across runs
+    base_name = os.path.basename(config["output_file"])
+    output_file = os.path.join("eval", base_name)
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     # If baseline already exists, skip recomputation
     if os.path.exists(output_file):
@@ -75,7 +80,7 @@ def run_baseline(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset
     return output_file
 
 
-def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
+def run_attack(config: dict, captioner, dataset: CocoValDataset):
     """Run adversarial attack experiment (fast path).
     - Runs on ALL images
     - Writes JSONL for ALL
@@ -93,6 +98,8 @@ def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
     output_file = config["output_file"]
     alpha = parse_float_maybe_frac(config.get("alpha", "1/255"))
     steps = int(config.get("steps", 10))
+    ve_mode = config.get("ve_mode", "max")
+    ve_momentum = float(config.get("ve_momentum", 0.9))
     wandb_display_limit = int(
         config.get("wandb_display_limit")
         or (config.get("save_images", {}) or {}).get("max_count", 10)
@@ -100,6 +107,12 @@ def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
     )
 
     # ---- I/O setup ----
+    # Route output under eval/<model>/<run_mode>/
+    model_name = config["model"]["name"] if config.get("model") else "model"
+    model_safe = model_name.replace('/', '__')
+    run_mode = config.get("run_mode") or ("high_impact" if "high" in (config.get("wandb", {}).get("project", "").lower()) else "standard")
+    base_name = os.path.basename(output_file)
+    output_file = os.path.join("eval", model_safe, run_mode, base_name)
     outdir = os.path.dirname(output_file)
     if outdir:
         os.makedirs(outdir, exist_ok=True)
@@ -113,8 +126,13 @@ def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
         # Use provided save_dir if present; otherwise derive from output_file
         if not save_dir:
             stem = os.path.splitext(os.path.basename(output_file))[0]
-            save_dir = os.path.join("runs", stem)
-            # Persist derived path so downstream evaluation can find pairs
+            # Place under runs/<model>/<run_mode>/<stem>
+            save_dir = os.path.join("runs", model_safe, run_mode, stem)
+            config["save_dir"] = save_dir
+        else:
+            # If provided, normalize under runs/<model>/<run_mode>/ using its basename
+            base = os.path.basename(save_dir.rstrip(os.sep))
+            save_dir = os.path.join("runs", model_safe, run_mode, base)
             config["save_dir"] = save_dir
         # Save directly under the provided/derived run directory (flat layout)
         save_root = save_dir
@@ -142,6 +160,14 @@ def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
             "alpha_str": config.get("alpha", "1/255"),
             "steps": steps,
         })
+    elif attack_type == "veattack":
+        attack_params.update({
+            "alpha": alpha,
+            "alpha_str": config.get("alpha", "1/255"),
+            "steps": steps,
+            "ve_mode": ve_mode,
+            "ve_momentum": ve_momentum,
+        })
     wandb.log(attack_params)
 
     # ---- Caches ----
@@ -151,8 +177,8 @@ def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
     def get_tokenized_ref(ref: str):
         ti = ref_token_cache.get(ref)
         if ti is None:
-            ti = captioner.processor(text=ref, return_tensors="pt")
-            ti = {k: v.to(captioner.device) for k, v in ti.items()}
+            # Use model-agnostic tokenizer preparation
+            ti = captioner.prepare_ref_tokens(ref)
             ref_token_cache[ref] = ti
         return ti
 
@@ -181,13 +207,8 @@ def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
 
             # ---- Define loss fn (uses cached tokens) ----
             def loss_fn(x):
-                outputs = captioner.model(
-                    pixel_values=x,
-                    input_ids=ti["input_ids"],
-                    attention_mask=ti["attention_mask"],
-                    labels=ti["input_ids"],
-                )
-                return outputs.loss
+                # Use model-agnostic loss function
+                return captioner.loss_from_pixel_values(x, ti)
 
             # ---- Clean loss (for logging only) ----
             with torch.no_grad():
@@ -200,9 +221,13 @@ def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
             # ---- Run ATTACK (full precision; grads enabled only here) ----
             # Make sure pv requires grad only inside attack
             if attack_type == "fgsm":
-                adv_pv = fgsm_attack(pv, loss_fn, eps)  # expects grad on inputs internally
-            else:
+                adv_pv = fgsm_attack(pv, loss_fn, eps)
+            elif attack_type == "pgd":
                 adv_pv = pgd_attack(pv, loss_fn, eps, alpha, steps)
+            elif attack_type == "veattack":
+                adv_pv = veattack(pv, loss_fn, eps, alpha, steps, mode=ve_mode, momentum=ve_momentum)
+            else:
+                raise ValueError(f"Unknown attack type: {attack_type}")
 
             # ---- Caption (adv) + adv loss (no grads, amp ok) ----
             adv_img = to_pil_from_pixel_values(captioner.processor, adv_pv)
@@ -265,8 +290,10 @@ def run_attack(config: dict, captioner: BLIPCaptioner, dataset: CocoValDataset):
                 "adv_loss": adv_loss,
                 "loss_increase": loss_increase,
             }
-            if attack_type == "pgd":
+            if attack_type in ("pgd", "veattack"):
                 rec.update({"alpha": config.get("alpha"), "steps": steps})
+            if attack_type == "veattack":
+                rec.update({"ve_mode": ve_mode, "ve_momentum": ve_momentum})
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
     # ---- Final W&B logs ----
@@ -380,7 +407,7 @@ def evaluate_experiment(baseline_file: str, attack_file: str, images_root: str, 
 
     # ---- Summary metrics (single point) ----
     experiment_name = f"{config.get('attack','unknown')}_eps{config.get('epsilon','N/A')}"
-    if config.get('attack') == 'pgd':
+    if config.get('attack') in ('pgd', 'veattack'):
         experiment_name += f"_alpha{config.get('alpha','N/A')}_steps{config.get('steps','N/A')}"
 
     wandb.log({
@@ -511,8 +538,8 @@ def evaluate_experiment(baseline_file: str, attack_file: str, images_root: str, 
     experiment_summary = [[
         config.get("attack", "unknown"),
         config.get("epsilon", "N/A"),
-        config.get("alpha", "N/A") if config.get("attack") == "pgd" else "N/A",
-        config.get("steps", "N/A") if config.get("attack") == "pgd" else "N/A",
+        config.get("alpha", "N/A") if config.get("attack") in ("pgd", "veattack") else "N/A",
+        config.get("steps", "N/A") if config.get("attack") in ("pgd", "veattack") else "N/A",
         total,
         f"{bleu_base:.4f}",
         f"{bleu_adv:.4f}",
@@ -570,6 +597,10 @@ def main():
             print(f"{'='*50}")
             
             exp_config = get_experiment_config(config, exp_name)
+            # Determine run_mode if not specified: based on config filename
+            if not exp_config.get("run_mode"):
+                cfg_stem = Path(args.config).stem.lower()
+                exp_config["run_mode"] = "high_impact" if "high_impact" in cfg_stem else "standard"
             
             # Override device if specified
             if args.device:
@@ -594,8 +625,19 @@ def main():
                     exp_config["data"]["split"],
                     exp_config["data"]["max_images"]
                 )
-                captioner = BLIPCaptioner(exp_config["model"]["name"], exp_config["model"]["device"])
-                
+                captioner = create_captioner(exp_config["model"]["name"], exp_config["model"]["device"])
+                # Optional generation controls from config
+                mcfg = exp_config.get("model", {})
+                if hasattr(captioner, "single_sentence") and mcfg.get("single_sentence") is not None:
+                    captioner.single_sentence = bool(mcfg.get("single_sentence"))
+                if hasattr(captioner, "max_length") and mcfg.get("max_length") is not None:
+                    try:
+                        captioner.max_length = int(mcfg.get("max_length"))
+                    except Exception:
+                        pass
+                if hasattr(captioner, "prompt") and mcfg.get("prompt"):
+                    captioner.prompt = str(mcfg.get("prompt"))
+
                 if exp_config["type"] == "baseline":
                     output_file = run_baseline(exp_config, captioner, dataset)
                     print(f"Baseline results saved to: {output_file}")
@@ -605,7 +647,8 @@ def main():
                     
                     # Auto-evaluate if requested
                     if args.evaluate:
-                        baseline_file = "eval/baseline_1000.jsonl"
+                        # Use global baseline under eval/
+                        baseline_file = os.path.join("eval", "baseline_1000.jsonl")
                         if os.path.exists(baseline_file):
                             print(f"\nEvaluating against baseline: {baseline_file}")
                             evaluate_experiment(
@@ -627,6 +670,10 @@ def main():
     else:
         # Run single experiment
         exp_config = get_experiment_config(config, args.experiment)
+        # Determine run_mode if not specified: based on config filename
+        if not exp_config.get("run_mode"):
+            cfg_stem = Path(args.config).stem.lower()
+            exp_config["run_mode"] = "high_impact" if "high_impact" in cfg_stem else "standard"
         
         # Override device if specified
         if args.device:
@@ -650,8 +697,19 @@ def main():
             exp_config["data"]["split"],
             exp_config["data"]["max_images"]
         )
-        captioner = BLIPCaptioner(exp_config["model"]["name"], exp_config["model"]["device"])
-        
+        captioner = create_captioner(exp_config["model"]["name"], exp_config["model"]["device"])
+        # Optional generation controls from config
+        mcfg = exp_config.get("model", {})
+        if hasattr(captioner, "single_sentence") and mcfg.get("single_sentence") is not None:
+            captioner.single_sentence = bool(mcfg.get("single_sentence"))
+        if hasattr(captioner, "max_length") and mcfg.get("max_length") is not None:
+            try:
+                captioner.max_length = int(mcfg.get("max_length"))
+            except Exception:
+                pass
+        if hasattr(captioner, "prompt") and mcfg.get("prompt"):
+            captioner.prompt = str(mcfg.get("prompt"))
+
         if exp_config["type"] == "baseline":
             output_file = run_baseline(exp_config, captioner, dataset)
             print(f"Baseline results saved to: {output_file}")
@@ -661,7 +719,7 @@ def main():
             
             # Auto-evaluate if requested
             if args.evaluate:
-                baseline_file = "eval/baseline_1000.jsonl"
+                baseline_file = os.path.join("eval", "baseline_1000.jsonl")
                 if os.path.exists(baseline_file):
                     print(f"\nEvaluating against baseline: {baseline_file}")
                     evaluate_experiment(

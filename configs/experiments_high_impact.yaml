@@ -1,7 +1,10 @@
 # Higher-impact / efficiency-focused adversarial attack experiments
 model:
-  name: "Salesforce/blip-image-captioning-large"
+  name: "Salesforce/blip2-opt-2.7b"  # or Salesforce/blip2-opt-2.7b or Salesforce/blip-image-captioning-large
   device: "cuda"
+  single_sentence: true
+  max_length: 25
+  prompt: "Describe the image in one concise sentence."
 
 data:
   root: "data/coco2017"
@@ -15,9 +18,9 @@ save_images:
   max_count: 15
 
 wandb:
-  project: "adversarial-blip-attacks-high-impact"
+  project: "adversarial-blip2-attacks-high-impact"
   entity: null
-  tags: ["adversarial", "blip", "image-captioning", "high-impact"]
+  tags: ["adversarial", "blip2", "image-captioning", "high-impact"]
 
 experiments:
   baseline:
@@ -42,21 +45,7 @@ experiments:
     save_dir: "runs/fgsm_eps10_255_1000"
 
   # PGD variants to explore efficiency vs strength at moderate-to-high eps
-  # Faster PGD: fewer steps, larger alpha
-  # Rationale: reduces compute while testing whether larger per-step moves
-  # still achieve strong degradation within the same eps bound.
-  pgd_eps6_s5_a2:
-    type: "attack"
-    attack: "pgd"
-    epsilon: "6/255"
-    alpha: "2/255"
-    steps: 5
-    output_file: "eval/pgd_s5_a2_255_eps6_255_1000.jsonl"
-    save_dir: "runs/pgd_eps6_s5_a2_255_1000"
-
-  # Standard PGD: balanced steps
-  # Rationale: a common baseline setting at higher eps; compare against
-  # faster and stronger variants on both caption and image quality metrics.
+  # Keep two effective PGD variants only
   pgd_eps8_s10_a2:
     type: "attack"
     attack: "pgd"
@@ -78,14 +67,25 @@ experiments:
     output_file: "eval/pgd_s20_a2_255_eps10_255_1000.jsonl"
     save_dir: "runs/pgd_eps10_s20_a2_255_1000"
 
-  # Alternative step-size at same eps: compare optimization behavior
-  # Rationale: smaller alpha with more steps can change optimization dynamics;
-  # compare against a2/255 to see if image quality improves for similar effect.
-  pgd_eps8_s20_a1:
+  # Add VEAttack (velocity-enhanced) high-impact variants (2 configs)
+  veattack_eps8:
     type: "attack"
-    attack: "pgd"
+    attack: "veattack"
     epsilon: "8/255"
-    alpha: "1/255"
-    steps: 20
-    output_file: "eval/pgd_s20_a1_255_eps8_255_1000.jsonl"
-    save_dir: "runs/pgd_eps8_s20_a1_255_1000"
+    alpha: "2/255"
+    steps: 10
+    ve_mode: "max"
+    ve_momentum: 0.9
+    output_file: "eval/veattack_s10_a2_255_eps8_255_1000.jsonl"
+    save_dir: "runs/veattack_eps8_s10_a2_255_1000"
+
+  veattack_eps10:
+    type: "attack"
+    attack: "veattack"
+    epsilon: "10/255"
+    alpha: "2/255"
+    steps: 10
+    ve_mode: "max"
+    ve_momentum: 0.9
+    output_file: "eval/veattack_s10_a2_255_eps10_255_1000.jsonl"
+    save_dir: "runs/veattack_eps10_s10_a2_255_1000"
