@@ -215,21 +215,7 @@ Notes:
 - `<model_name>` is sanitized by replacing `/` with `__`.
 - `<run_mode>` is `standard` or `high_impact` (inferred from config filename or set via `run_mode` in the experiment config).
 
-Legacy note: Commands in the "Legacy CLI Usage" section write exactly to the paths you pass (flat by default). They do not auto-nest by model/run_mode.
 ```
 
-## Key Improvements
-
-1. **Multi-model support**: BLIP / BLIP‑2 / LLaVA via a simple model factory (`src/model/factory.py`)
-2. **Unified attack interface**: captioners expose `prepare_ref_tokens()` and `loss_from_pixel_values()` so FGSM/PGD/VEAttack work across models
-3. **Structured configuration**: all hyperparameters in one place
-4. **Automated evaluation**: `--evaluate` logs BLEU/ROUGE/CLIP deltas and limited per-image tables to W&B
-5. **Image quality metrics**: optional LPIPS/SSIM/PSNR on saved pairs
-6. **Backward compatibility**: legacy scripts still work
-
-## Troubleshooting
-
-- **Aligned examples in W&B less than expected**: Evaluation aligns by `file_name` between baseline and attack JSONLs. If your baseline JSONL is stale or incomplete, alignment (and W&B rows) will drop (e.g., 129). Regenerate the baseline (delete `eval/baseline_1000.jsonl` or change its path) and rerun the attack with `--evaluate`.
-- **Large models OOM**: Use smaller checkpoints or reduce batch-like operations (runner processes one image at a time; ensure `device` is set to `cuda`).
 
 
